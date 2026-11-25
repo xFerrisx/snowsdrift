@@ -65,7 +65,7 @@ SNOW = Theme(
 CITY = Theme(
     key="city",
     name="CITY RUN",
-    blurb="snowmobile  \u2022  asphalt  \u2022  skyscrapers",
+    blurb="motorbike  \u2022  asphalt  \u2022  skyscrapers",
     accent=(255, 214, 152),
     sky=(58, 76, 108),
     sky_horizon=(216, 200, 186),
@@ -92,7 +92,7 @@ CITY = Theme(
         "roof": (106, 104, 112),
         "window": (250, 226, 152),
     },
-    player="sled",
+    player="moto",
     shadow=(96, 100, 108),
     spray=(214, 218, 224),
 )
@@ -123,6 +123,7 @@ DIRT = Theme(
     detail_far=112.0,
     palette={
         "stalk": (172, 178, 108),
+        "node": (142, 148, 86),
         "leaf": (88, 126, 66),
     },
     player="bike",

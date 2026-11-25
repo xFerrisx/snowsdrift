@@ -95,10 +95,27 @@ class HUD:
             (cx, self.h - 84), "midtop",
         )
 
-    def draw_pause(self, surf):
-        self._overlay(surf, 140)
-        self._text(surf, self.big, "PAUSED", (255, 255, 255), (self.w // 2, self.h // 2 - 80), "midtop")
+    def draw_pause(self, surf, theme, active):
+        self._overlay(surf, 150)
+        cx = self.w // 2
+        top = self.h // 2 - 150
+        self._text(surf, self.big, "PAUSED", (255, 255, 255), (cx, top), "midtop")
+        self._text(surf, self.mid, theme.name, theme.accent, (cx, top + 92), "midtop")
+        self._text(surf, self.small, theme.blurb, (226, 236, 246), (cx, top + 136), "midtop")
+
+        y = top + 188
+        spacing = 196
+        count = len(themes.THEMES)
+        x0 = cx - (count - 1) * spacing // 2
+        for i, item in enumerate(themes.THEMES):
+            col = theme.accent if i == active else (172, 188, 202)
+            self._text(surf, self.small, f"{i + 1}  {item.name}", col, (x0 + i * spacing, y), "midtop")
+        self._text(
+            surf, self.tiny,
+            "1 2 3  or  LEFT / RIGHT  to switch the run  \u2022  your distance is kept",
+            (226, 236, 246), (cx, y + 28), "midtop",
+        )
         self._text(
             surf, self.small, "P resume    R restart    ESC quit",
-            (226, 236, 246), (self.w // 2, self.h // 2 + 12), "midtop",
+            (226, 236, 246), (cx, y + 72), "midtop",
         )

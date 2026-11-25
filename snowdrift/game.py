@@ -29,6 +29,18 @@ _SKIN = (226, 178, 132)
 _SHORTS = (42, 46, 60)
 _BIKE_HELMET = (240, 242, 246)
 
+_MOTO_BODY = (204, 66, 50)
+_MOTO_DARK = (58, 60, 68)
+_MOTO_METAL = (124, 130, 140)
+_MOTO_LEATHER = (44, 46, 56)
+_MOTO_HELMET = (238, 242, 248)
+
+
+def _rnd(i, k, salt):
+    """Deterministic 0..1 jitter for prop parts, keyed on station and part."""
+    v = math.sin(i * 12.9898 + k * 78.233 + salt * 37.719) * 43758.5453
+    return v - math.floor(v)
+
 
 def _box(x0, x1, y0, y1, z0, z1, top, side, back=None):
     """Visible faces of an axis-aligned box: top, one side, optionally the back."""
@@ -111,10 +123,48 @@ def _build_bike():
     return parts
 
 
-PLAYER_MESHES = {"sled": _build_sled(), "bike": _build_bike()}
+def _build_motorcycle():
+    """A sport bike: fat wheels, a tank to tuck behind, rider folded forward."""
+    parts = []
+    parts.append((_disc(0.0, 0.36, 0.78, 0.36), _BIKE_TYRE))
+    parts.append((_disc(0.0, 0.38, -0.78, 0.38), _BIKE_TYRE))
+    # engine block and lower fairing
+    parts += _box(-0.21, 0.21, 0.34, 0.72, -0.44, 0.36, _MOTO_DARK, _MOTO_BODY, _MOTO_DARK)
+    # tank and upper fairing
+    parts += _box(-0.25, 0.25, 0.72, 0.98, -0.30, 0.44, _MOTO_BODY, _MOTO_BODY, _MOTO_DARK)
+    # nose wedge
+    parts.append((((-0.25, 0.72, 0.44), (0.25, 0.72, 0.44),
+                   (0.15, 0.86, 0.88), (-0.15, 0.86, 0.88)), _MOTO_BODY))
+    parts.append((((-0.15, 0.84, 0.86), (0.15, 0.84, 0.86),
+                   (0.10, 1.08, 0.70), (-0.10, 1.08, 0.70)), _GLASS))
+    # seat and tail
+    parts += _box(-0.17, 0.17, 0.98, 1.05, -0.64, -0.12, _SEAT, _SEAT, _SEAT)
+    parts += _box(-0.14, 0.14, 0.96, 1.08, -0.94, -0.62, _MOTO_BODY, _MOTO_DARK, _MOTO_DARK)
+    # forks, swingarm, exhaust, bars
+    parts.append(_bar((0.0, 0.74, 0.46), (0.0, 0.30, 0.82), 0.06, _MOTO_METAL))
+    parts.append(_bar((0.0, 0.96, 0.28), (0.0, 0.52, 0.82), 0.05, _MOTO_METAL))
+    parts.append(_bar((0.0, 0.46, -0.30), (0.0, 0.38, -0.78), 0.07, _MOTO_METAL))
+    parts.append(_bar((0.22, 0.46, -0.18), (0.27, 0.48, -0.88), 0.09, _MOTO_METAL))
+    parts.append(_bar((0.0, 1.00, 0.34), (0.0, 1.02, 0.38), 0.30, _MOTO_DARK))
+    # rider, chest on the tank
+    parts += _box(-0.18, 0.18, 1.02, 1.46, -0.34, 0.10, _MOTO_LEATHER, _MOTO_LEATHER, _MOTO_LEATHER)
+    parts += _box(-0.13, 0.13, 1.46, 1.66, -0.22, 0.06, _MOTO_HELMET, _MOTO_HELMET, _MOTO_HELMET)
+    for side in (-1.0, 1.0):
+        parts.append(_bar((side * 0.17, 1.38, 0.06), (side * 0.24, 1.02, 0.36), 0.055, _MOTO_LEATHER))
+        parts.append(_bar((side * 0.15, 1.04, -0.26), (side * 0.20, 0.76, -0.24), 0.075, _MOTO_LEATHER))
+        parts.append(_bar((side * 0.20, 0.76, -0.24), (side * 0.24, 0.46, -0.44), 0.06, _MOTO_LEATHER))
+    return parts
+
+
+PLAYER_MESHES = {
+    "sled": _build_sled(),
+    "bike": _build_bike(),
+    "moto": _build_motorcycle(),
+}
 PLAYER_SHADOW = {
     "sled": ((-0.85, -2.0), (0.85, -2.0), (1.15, 0.1), (0.70, 1.9), (-0.70, 1.9), (-1.15, 0.1)),
     "bike": ((-0.42, -0.95), (0.42, -0.95), (0.52, 0.1), (0.34, 0.9), (-0.34, 0.9), (-0.52, 0.1)),
+    "moto": ((-0.40, -0.95), (0.40, -0.95), (0.52, 0.15), (0.36, 0.90), (-0.36, 0.90), (-0.52, 0.15)),
 }
 
 
@@ -147,10 +197,33 @@ class Game:
         self._bump_cool = 0.0
         self._render_dir = 1
 
-    def set_theme(self, which):
-        """Switch look and rebuild the stream so the palette applies."""
+    def set_theme(self, which, keep_run=False):
+        """Switch look and rebuild the stream so the palette applies.
+
+        The path is a pure function of the seed, so a theme swap mid-run can
+        rebuild every station in the new palette and then put the rider back
+        exactly where they were - distance and speed intact.
+        """
+        if not keep_run:
+            self.theme = themes.set_theme(which)
+            self.reset(self.seed)
+            return
+        old = self.sled
+        saved = (
+            old.x, old.y, old.z, old.psi, old.vx, old.vz, old.speed,
+            old.score, old.station_i, old.drift, old.roll, old.pitch,
+        )
+        state = self.state
         self.theme = themes.set_theme(which)
         self.reset(self.seed)
+        new = self.sled
+        (
+            new.x, new.y, new.z, new.psi, new.vx, new.vz, new.speed,
+            new.score, new.station_i, new.drift, new.roll, new.pitch,
+        ) = saved
+        self.track.ensure(new.station_i - config.GEN_BEHIND, new.station_i + config.GEN_AHEAD)
+        self._render_dir = 1
+        self.state = state
 
     def handle_event(self, event):
         """Returns False when the window should close."""
@@ -170,6 +243,15 @@ class Game:
             if key in (pygame.K_LEFT, pygame.K_RIGHT):
                 step = -1 if key == pygame.K_LEFT else 1
                 self.set_theme(themes.index_of(self.theme.key) + step)
+                return True
+        if self.state == "paused":
+            theme_keys = {pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2}
+            if key in theme_keys:
+                self.set_theme(theme_keys[key], keep_run=True)
+                return True
+            if key in (pygame.K_LEFT, pygame.K_RIGHT):
+                step = -1 if key == pygame.K_LEFT else 1
+                self.set_theme(themes.index_of(self.theme.key) + step, keep_run=True)
                 return True
         if key == pygame.K_p:
             if self.state == "play":
@@ -504,44 +586,79 @@ class Game:
         )
 
     def _add_bamboo(self, r, st, off, size, variant, palette, detail):
-        x = st.x + st.rx * off
-        z = st.z + st.rz * off
-        y = st.y
+        """A clump of jointed culms with drooping leaves near the top."""
         cam = r.cam
-        depth = cam.depth((x, y, z))
-        if depth < NEAR or depth > config.FOG_END:
-            return
         rx = cam.rx
         rz = cam.rz
-        h = 11.0 + 12.0 * size
-        half = 0.10 + 0.07 * variant
-        r.add(
-            ((x - rx * half, y, z - rz * half), (x + rx * half, y, z + rz * half),
-             (x + rx * half, y + h, z + rz * half), (x - rx * half, y + h, z - rz * half)),
-            palette["stalk"], depth,
-        )
-        if depth < detail:
-            # two small crowns, one either side of the stem, so a clump reads
-            # as leafy bamboo rather than a green cone on a stick
-            wd = 1.0 + 0.9 * variant
-            top = y + h * 0.66
+        base_x = st.x + st.rx * off
+        base_z = st.z + st.rz * off
+        y = st.y
+        depth = cam.depth((base_x, y + 6.0, base_z))
+        if depth < NEAR or depth > config.FOG_END:
+            return
+
+        # Joints and leaf sprays are the expensive part of a clump, so they
+        # stop well short of the silhouette distance.
+        near = depth < detail * 0.8
+        culms = 2 if near else 1
+        spread = 0.75 + 0.9 * variant
+        for k in range(culms):
+            # two culms leaning apart, so a clump reads as a thicket of stems
+            # instead of a single pole with a flag on top
+            u = (k - (culms - 1) * 0.5) * spread
+            bx = base_x + st.rx * u + st.fx * (_rnd(st.i, k, 3) - 0.5) * 0.7
+            bz = base_z + st.rz * u + st.fz * (_rnd(st.i, k, 3) - 0.5) * 0.7
+            h = (9.5 + 9.0 * size) * (0.84 + 0.28 * _rnd(st.i, k, 5))
+            half = (0.085 + 0.05 * _rnd(st.i, k, 7)) * (1.0 + 0.5 * size)
             r.add(
-                ((x - rx * wd * 2.1, top - wd * 0.2, z - rz * wd * 2.1),
-                 (x - rx * wd * 0.1, top + h * 0.30, z - rz * wd * 0.1),
-                 (x - rx * wd * 0.4, top - wd * 0.1, z - rz * wd * 0.4)),
-                palette["leaf"], depth,
+                ((bx - rx * half, y, bz - rz * half),
+                 (bx + rx * half, y, bz + rz * half),
+                 (bx + rx * half * 0.6, y + h, bz + rz * half * 0.6),
+                 (bx - rx * half * 0.6, y + h, bz - rz * half * 0.6)),
+                palette["stalk"], depth,
             )
-            r.add(
-                ((x + rx * wd * 0.2, top + wd * 0.1, z + rz * wd * 0.2),
-                 (x + rx * wd * 2.3, top + h * 0.26, z + rz * wd * 2.3),
-                 (x + rx * wd * 0.3, top - wd * 0.3, z + rz * wd * 0.3)),
-                palette["leaf"], depth,
-            )
+            if not near:
+                continue
+            for n in range(2):
+                ny = y + h * (0.30 + 0.27 * n + 0.06 * _rnd(st.i, n, 9))
+                r.add(
+                    ((bx - rx * half * 1.7, ny, bz - rz * half * 1.7),
+                     (bx + rx * half * 1.7, ny, bz + rz * half * 1.7),
+                     (bx + rx * half * 1.7, ny + 0.16, bz + rz * half * 1.7),
+                     (bx - rx * half * 1.7, ny + 0.16, bz - rz * half * 1.7)),
+                    palette["node"], depth,
+                )
+            # A spray of narrow blades around the crown, overlapping into a
+            # leafy tuft rather than a few green flags on a pole.
+            base_ang = _rnd(st.i, k, 11) * math.tau
+            for j in range(4):
+                ang = base_ang + j * 1.55 + (_rnd(st.i, k * 4 + j, 19) - 0.5) * 0.5
+                dx = st.rx * math.cos(ang) + st.fx * math.sin(ang)
+                dz = st.rz * math.cos(ang) + st.fz * math.sin(ang)
+                ax = bx + dx * half * 2.0
+                az = bz + dz * half * 2.0
+                ay = y + h * (0.80 + 0.17 * _rnd(st.i, j + 1, 13))
+                length = (1.5 + 0.9 * size) * (0.85 + 0.35 * _rnd(st.i, j + 1, 15))
+                px = -dz * (0.16 + 0.07 * size)
+                pz = dx * (0.16 + 0.07 * size)
+                r.add(
+                    ((ax - px, ay, az - pz),
+                     (ax + dx * length, ay - length * 0.42, az + dz * length),
+                     (ax + px, ay, az + pz)),
+                    palette["leaf"], depth,
+                )
 
     def _add_building(self, r, st, off, size, variant, palette, detail):
+        """A box with banded windows, drawn solid from either side.
+
+        Only the walls the camera is actually outside of are emitted, and each
+        one is added with its own depth. Building the roof unconditionally and
+        sharing one sort key across every face is what used to paint grey slabs
+        over the fronts of their own towers.
+        """
         y = st.y
         w = 6.0 + 10.0 * variant
-        d = 8.0 + 10.0 * size
+        d = 6.6 + 1.2 * variant            # < the 8 m station spacing
         h = 6.0 + 26.0 * size
         sign = 1.0 if off > 0.0 else -1.0
         inner = off - sign * w * 0.5
@@ -553,45 +670,71 @@ class Game:
             return (st.x + st.rx * l + st.fx * f, yy, st.z + st.rz * l + st.fz * f)
 
         cam = r.cam
-        depth = cam.depth(corner(inner, 0.0, y + h * 0.5))
+        depth = cam.depth(corner(off, 0.0, y + h * 0.4))
         if depth < NEAR or depth > config.FOG_END:
             return
+        cdx = cam.x - st.x
+        cdz = cam.z - st.z
+        cam_f = cdx * st.fx + cdz * st.fz
         roof = y + h
-        # the wall facing the camera and, when close enough to matter, the
-        # wall facing the road plus a roof; further out two quads are enough
-        r.add(
-            (corner(inner, f0, y), corner(outer, f0, y),
-             corner(outer, f0, roof), corner(inner, f0, roof)),
-            palette["side"], depth,
-        )
-        if depth > detail:
+
+        end_face = None
+        if cam_f <= f0:
+            end_face = (f0, palette["side"])
+        elif cam_f >= f1:
+            end_face = (f1, palette["side"])
+        if end_face is not None:
+            f, col = end_face
             r.add(
-                (corner(inner, f0, y), corner(inner, f1, y),
-                 corner(inner, f1, roof), corner(inner, f0, roof)),
-                palette["wall"], depth,
+                (corner(inner, f, y), corner(outer, f, y),
+                 corner(outer, f, roof), corner(inner, f, roof)),
+                col,
             )
-            return
+
+        # The camera is always on the road side of the block, so the wall
+        # facing the road (``inner``, whichever side of the street it is on)
+        # is the one that gives the tower its depth.
         r.add(
             (corner(inner, f0, y), corner(inner, f1, y),
              corner(inner, f1, roof), corner(inner, f0, roof)),
-            palette["wall"], depth,
+            palette["wall"],
         )
-        r.add(
-            (corner(inner, f0, roof), corner(outer, f0, roof),
-             corner(outer, f1, roof), corner(inner, f1, roof)),
-            palette["roof"], depth,
-        )
-        if depth < detail * 0.85:
+
+        if cam.y > roof:
+            r.add(
+                (corner(inner, f0, roof), corner(outer, f0, roof),
+                 corner(outer, f1, roof), corner(inner, f1, roof)),
+                palette["roof"],
+            )
+
+        if depth > detail:
+            return
+        # lit window bands, floated just proud of each wall so they never
+        # z-fight with it
+        if end_face is not None:
+            f, _ = end_face
+            fw = f - 0.02 if f < 0.0 else f + 0.02
             l0 = inner + sign * w * 0.16
             l1 = inner + sign * w * 0.78
             for k in range(3):
-                base = y + h * (0.24 + k * 0.22)
+                base = y + h * (0.26 + k * 0.21)
                 r.add(
-                    (corner(l0, f0 - 0.02, base), corner(l1, f0 - 0.02, base),
-                     corner(l1, f0 - 0.02, base + h * 0.045),
-                     corner(l0, f0 - 0.02, base + h * 0.045)),
-                    palette["window"], depth,
+                    (corner(l0, fw, base), corner(l1, fw, base),
+                     corner(l1, fw, base + h * 0.05),
+                     corner(l0, fw, base + h * 0.05)),
+                    palette["window"],
                 )
+        lw = inner - sign * 0.02
+        wa = f0 + d * 0.10
+        wb = f1 - d * 0.12
+        for k in range(3):
+            base = y + h * (0.26 + k * 0.21)
+            r.add(
+                (corner(lw, wa, base), corner(lw, wb, base),
+                 corner(lw, wb, base + h * 0.05),
+                 corner(lw, wa, base + h * 0.05)),
+                palette["window"],
+            )
 
     def _draw_player(self, r):
         s = self.sled
@@ -675,4 +818,4 @@ class Game:
                 stats_text,
             )
             if self.state == "paused":
-                hud.draw_pause(surf)
+                hud.draw_pause(surf, self.theme, themes.index_of(self.theme.key))

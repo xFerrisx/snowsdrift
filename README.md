@@ -11,7 +11,7 @@ them:
 | Run | You ride | Road | Roadside |
 | --- | --- | --- | --- |
 | **Ice Run** (default) | snowmobile | ice | tall, close-packed pines |
-| **City Run** | snowmobile | asphalt | skyscrapers with lit windows |
+| **City Run** | motorbike | asphalt | skyscrapers with lit windows |
 | **Dirt Run** | bicycle | packed dirt | bamboo |
 
 ![Drifting](screenshots/drift.png)
@@ -37,10 +37,13 @@ Python 3.10+ and `pygame-ce`.
 | `W` / `Up` | throttle |
 | `S` / `Down` | brake, then reverse |
 | `A` `D` / `Left` `Right` | steer |
-| `1` `2` `3` or `Left` `Right` (title screen) | choose the run |
+| `1` `2` `3` or `Left` `Right` | choose the run, on the title screen or while paused |
 | `P` | pause |
 | `R` | restart on a new track |
 | `Esc` | pause / quit |
+
+Changing the run while paused rebuilds the world in the new palette and puts
+you back exactly where you were, so distance and speed carry over.
 
 Banks line both sides of the road. Clipping one bounces you back and costs
 speed, so the fast line is a smooth one. Top speed is about 300 km/h, and the
@@ -87,8 +90,10 @@ before projection, so the cost of distance does not grow either.
 **5. Props are level of detail, not scenery soup.** Pines, bamboo and buildings
 are generated from the station index like everything else, then drawn in full
 detail only inside `detail_far` and as a single silhouette polygon beyond it.
-That is what lets the forest be dense enough to close off the view without
-costing a frame budget.
+Bamboo clumps are two jointed culms with a spray of leaves at the crown;
+buildings are boxes that emit only the walls the camera is actually outside
+of, so the tower stays solid as you ride past it. That is what lets the forest
+be dense enough to close off the view without costing a frame budget.
 
 **6. Drift physics.** The sled carries forward and lateral velocity in its own
 frame. Steering rotates the heading but never the velocity vector, so the nose
@@ -109,8 +114,8 @@ autopilot at full throttle):
 
 | | Ice Run | City Run | Dirt Run |
 | --- | --- | --- | --- |
-| Frame time | median 7.8 ms, p95 12.1 | median 10.1 ms, p95 14.3 | median 10.2 ms, p95 14.0 |
-| Polygons on screen | ~485 | ~455 | ~530 |
+| Frame time | median 5.0 ms, p95 6.5 | median 5.5 ms, p95 7.2 | median 8.5 ms, p95 10.8 |
+| Polygons on screen | ~440 | ~417 | ~729 |
 
 | | |
 | --- | --- |
@@ -159,5 +164,5 @@ render path, not a mock-up.
   depth sorted with it.
 - Buildings are boxes with banded windows; there is no city layout behind them
   and no traffic.
-- The bicycle is a fixed mesh with non-spinning wheels.
+- The bicycle and motorbike are fixed meshes with non-spinning wheels.
 - There is no lap, finish line or fail state - it is a distance run by design.

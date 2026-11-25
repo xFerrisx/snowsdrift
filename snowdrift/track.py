@@ -76,17 +76,18 @@ class TrackStream:
                 variant = 0.0 if hash01(i, slot, 31) < 0.86 else 1.0
                 out.append((off, size, variant))
         elif theme.scenery == "city":
-            for slot in range(1):
-                if hash01(i, slot, self.seed + 11) > 0.62:
-                    continue
-                side = -1.0 if hash01(i, slot, 17) < 0.5 else 1.0
-                off = side * (half_width + 7.0 + 30.0 * hash01(i, slot, 23) ** 1.4)
-                size = 0.25 + 0.85 * hash01(i, slot, 29)
-                variant = hash01(i, slot, 31)
+            # One block every other station (8 m apart) with a depth that fits
+            # in that gap, so neighbours sit beside each other instead of
+            # interpenetrating into one fused slab.
+            if i % 2 == 0 and hash01(i, 0, self.seed + 11) < 0.80:
+                side = -1.0 if hash01(i, 0, 17) < 0.5 else 1.0
+                off = side * (half_width + 7.0 + 30.0 * hash01(i, 0, 23) ** 1.4)
+                size = 0.25 + 0.85 * hash01(i, 0, 29)
+                variant = hash01(i, 0, 31)
                 out.append((off, size, variant))
         else:  # bamboo
-            for slot in range(4):
-                if hash01(i, slot, self.seed + 11) > 0.45:
+            for slot in range(3):
+                if hash01(i, slot, self.seed + 11) > 0.5:
                     continue
                 side = -1.0 if hash01(i, slot, 17) < 0.5 else 1.0
                 off = side * (half_width + 1.6 + 28.0 * hash01(i, slot, 23) ** 1.3)
