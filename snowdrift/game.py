@@ -229,10 +229,20 @@ class Game:
             r = Renderer(self.surface)
             self.renderer = r
         r.w, r.h = self.surface.get_size()
+        r.poly_count = 0
         r.draw_sky()
-        self._draw_track(r)
+
+        stations = self._draw_track(r)
+        # Paint the ice first. A strip the sled has already crossed reaches
+        # from under the camera to the sled, so sorting it against the sled by
+        # one depth let it be drawn back over the top; flushing in two passes
+        # makes the ground unconditionally underneath.
+        r.flush()
+
+        self._draw_trees(r, stations)
         self._draw_sled(r)
         r.flush()
+
         self._draw_spray(r)
         self._draw_hud()
 
@@ -346,6 +356,10 @@ class Game:
                 a.bank,
             )
 
+        return stations
+
+    def _draw_trees(self, r, stations):
+        cur = self.sled.station_i
         for st in stations:
             if not st.trees or abs(st.i - cur) > 80:
                 continue

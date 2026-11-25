@@ -166,7 +166,9 @@ class Renderer:
         self.queue.sort(key=_sort_key, reverse=True)
         for _, pts, color in self.queue:
             polygon(surface, color, pts)
-        self.poly_count = len(self.queue)
+        # Cumulative within one frame: the scene is flushed more than once so
+        # the ice can go down before anything standing on it.
+        self.poly_count += len(self.queue)
         self.queue.clear()
 
     # -- backdrop --------------------------------------------------------
