@@ -10,7 +10,7 @@ import math
 
 import pygame
 
-from . import config
+from . import config, themes
 from .util import clamp, lerp_color, vnoise
 
 NEAR = 0.45
@@ -157,7 +157,7 @@ class Renderer:
         if depth > config.FOG_START:
             t = clamp((depth - config.FOG_START) / (config.FOG_END - config.FOG_START), 0.0, 1.0)
             fog = t * t * 0.55 + t * 0.45      # denser near the draw limit
-            color = lerp_color(color, config.FOG_COLOR, fog)
+            color = lerp_color(color, themes.current.fog, fog)
         self.queue.append((depth, pts, color))
 
     def flush(self):
@@ -174,6 +174,7 @@ class Renderer:
     # -- backdrop --------------------------------------------------------
     def draw_sky(self):
         surface = self.surface
+        theme = themes.current
         w = self.w
         h = self.h
         horizon = h * 0.5 + self.cam.focal * math.tan(self.cam.pitch)
@@ -188,7 +189,7 @@ class Renderer:
                 y0 = horizon * i / bands
                 y1 = horizon * (i + 1) / bands
                 t = i / (bands - 1.0)
-                col = lerp_color(config.SKY_TOP, config.SKY_HORIZON, t * t * 0.75 + t * 0.25)
+                col = lerp_color(theme.sky, theme.sky_horizon, t * t * 0.75 + t * 0.25)
                 pygame.draw.rect(surface, col, (0, int(y0), w, int(y1 - y0) + 2))
 
         self._draw_mountains(horizon)
@@ -199,7 +200,7 @@ class Renderer:
                 y0 = horizon + span * i / bands
                 y1 = horizon + span * (i + 1) / bands
                 t = i / (bands - 1.0)
-                col = lerp_color(config.SNOW_FAR, config.SNOW_NEAR, t * t)
+                col = lerp_color(theme.ground_far, theme.ground_near, t * t)
                 pygame.draw.rect(surface, col, (0, int(y0), w, int(y1 - y0) + 2))
 
     def _draw_mountains(self, horizon):
@@ -207,10 +208,11 @@ class Renderer:
         w = self.w
         focal = cam.focal
         yaw = cam.yaw
+        theme = themes.current
         steps = 42
         for layer in (0, 1):
-            col = (186, 202, 219) if layer == 0 else (197, 211, 226)
-            amp = 118.0 if layer == 0 else 72.0
+            col = theme.hill_far if layer == 0 else theme.hill_near
+            amp = theme.hill_amp if layer == 0 else theme.hill_amp * 0.62
             seed_a = 91 + layer * 13
             seed_b = 37 + layer * 5
             pts = [(0, int(horizon) + 2)]

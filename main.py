@@ -13,11 +13,15 @@ from snowdrift.game import Game
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description="Snowdrift - endless ice drifting")
+    parser = argparse.ArgumentParser(description="Snowdrift - endless drifting")
     parser.add_argument("--size", default="1280x720", help="window size, e.g. 1280x720")
     parser.add_argument("--seed", type=int, default=None, help="track seed")
     parser.add_argument("--stats", action="store_true", help="show fps / polygons / RAM")
     parser.add_argument("--fullscreen", action="store_true", help="start fullscreen")
+    parser.add_argument(
+        "--theme", default="snow",
+        help="snow (ice/snowmobile, default), city (asphalt/buildings) or dirt (bicycle/bamboo)",
+    )
     return parser.parse_args(argv)
 
 
@@ -35,7 +39,7 @@ def main(argv=None):
     clock = pygame.time.Clock()
 
     seed = args.seed if args.seed is not None else random.randrange(1, 1 << 30)
-    game = Game(surface, seed=seed, stats=args.stats)
+    game = Game(surface, seed=seed, stats=args.stats, theme=args.theme)
 
     running = True
     while running:

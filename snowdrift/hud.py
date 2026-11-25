@@ -2,6 +2,8 @@
 
 import pygame
 
+from . import themes
+
 
 class HUD:
     def __init__(self, w, h):
@@ -53,14 +55,28 @@ class HUD:
         shade.fill((8, 18, 32, alpha))
         surf.blit(shade, (0, 0))
 
-    def draw_title(self, surf):
-        self._overlay(surf, 120)
+    def draw_title(self, surf, theme, active):
+        self._overlay(surf, 128)
         cx = self.w // 2
-        self._text(surf, self.big, "SNOWDRIFT", (255, 255, 255), (cx, self.h // 5), "midtop")
+        self._text(surf, self.big, "SNOWDRIFT", (255, 255, 255), (cx, self.h // 5 - 30), "midtop")
+        self._text(surf, self.mid, theme.name, theme.accent, (cx, self.h // 5 + 58), "midtop")
         self._text(
-            surf, self.mid, "endless ice  \u2022  third person  \u2022  drift for distance",
-            (214, 232, 246), (cx, self.h // 5 + 92), "midtop",
+            surf, self.small, theme.blurb, (226, 236, 246),
+            (cx, self.h // 5 + 104), "midtop",
         )
+
+        y = self.h // 5 + 150
+        spacing = 196
+        count = len(themes.THEMES)
+        x0 = cx - (count - 1) * spacing // 2
+        for i, item in enumerate(themes.THEMES):
+            col = theme.accent if i == active else (172, 188, 202)
+            self._text(surf, self.small, f"{i + 1}  {item.name}", col, (x0 + i * spacing, y), "midtop")
+        self._text(
+            surf, self.tiny, "1 2 3  or  LEFT / RIGHT  to change the run",
+            (226, 236, 246), (cx, y + 28), "midtop",
+        )
+
         controls = [
             ("W  /  \u2191", "throttle"),
             ("S  /  \u2193", "brake & reverse"),
@@ -68,15 +84,15 @@ class HUD:
             ("P", "pause"),
             ("ESC", "quit"),
         ]
-        y = self.h // 2 + 36
         col = cx - 96
+        y = self.h // 2 + 96
         for key, action in controls:
-            self._text(surf, self.small, key, (255, 240, 190), (col, y), "topright")
+            self._text(surf, self.small, key, theme.accent, (col, y), "topright")
             self._text(surf, self.small, action, (232, 242, 250), (col + 22, y))
-            y += 30
+            y += 28
         self._text(
-            surf, self.mid, "PRESS SPACE TO RIDE", (255, 240, 190),
-            (cx, self.h - 96), "midtop",
+            surf, self.mid, "PRESS SPACE TO RIDE", theme.accent,
+            (cx, self.h - 84), "midtop",
         )
 
     def draw_pause(self, surf):

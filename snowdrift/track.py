@@ -1,21 +1,24 @@
-"""Infinitely streamed ice track.
+"""Infinitely streamed track.
 
 The path is a ribbon swept along a path defined by two smooth noise fields:
 one bends the path, one lifts it. Both are pure functions of the station
 index, so the path is endless without ever storing it.
 
 Stations are grown outward from whichever part of the window already exists -
-forwards, backwards, or both - so the ice is always there whether you are
+forwards, backwards, or both - so the road is always there whether you are
 riding on or have spun round and headed back the way you came. Memory stays
 flat because only a bounded window around the player exists: new stations are
 generated at both ends and old ones are dropped at both ends (see
 ``TrackStream.prune``). Everything else about the track is re-derived from the
 index, so a pruned stretch comes back identical if you ride into it again.
+
+Colours and the props beside the road come from the active theme, which is
+read at generation time; switching theme therefore rebuilds the stream.
 """
 
 import math
 
-from . import config
+from . import config, themes
 from .util import hash01, vnoise
 
 
@@ -24,7 +27,7 @@ class Station:
 
     __slots__ = (
         "i", "s", "x", "y", "z", "fx", "fz", "rx", "rz", "w",
-        "ice", "bank", "trees",
+        "surface", "bank", "props",
     )
 
 
@@ -47,8 +50,9 @@ class TrackStream:
         # wobbling, glitchy road, so the shortest octave stays long.
         n1 = vnoise(i / 22.0, self.seed + 1) * 2.0 - 1.0
         n2 = vnoise(i / 8.0, self.seed + 2) * 2.0 - 1.0
-        # 0.016 1/m is roughly a 60 m radius hairpin - tight but drivable.
-        return 0.0125 * n1 + 0.0035 * n2
+        # ~0.012 1/m is an 85 m radius hairpin: drivable flat out at 300 km/h
+        # with a little margin, so the top speed is usable rather than a trap.
+        return 0.0092 * n1 + 0.0026 * n2
 
     def _height(self, i):
         # 120 m and 44 m swells, about 4 degrees at their steepest. The old
@@ -56,19 +60,43 @@ class TrackStream:
         return 2.2 * (vnoise(i / 30.0, self.seed + 3) * 2.0 - 1.0) \
             + 0.75 * (vnoise(i / 11.0, self.seed + 4) * 2.0 - 1.0)
 
-    def _trees(self, i, half_width):
-        trees = []
-        for slot in range(2):
-            if hash01(i, slot, self.seed + 11) > 0.38:
-                continue
-            side = -1.0 if hash01(i, slot, 17) < 0.5 else 1.0
-            off = half_width + 5.5 + 26.0 * hash01(i, slot, 23) ** 1.3
-            size = 0.75 + 0.85 * hash01(i, slot, 29)
-            kind = 0 if hash01(i, slot, 31) < 0.78 else 1
-            trees.append((side * off, size, kind))
-        return tuple(trees)
+    def _props(self, i, half_width):
+        """What stands beside the road: (lateral offset, size, variant)."""
+        theme = themes.current
+        out = []
+        if theme.scenery == "pine":
+            # A proper forest: four chances per station, and close in, so the
+            # trunks crowd the road and close off the view down the track.
+            for slot in range(3):
+                if hash01(i, slot, self.seed + 11) > 0.42:
+                    continue
+                side = -1.0 if hash01(i, slot, 17) < 0.5 else 1.0
+                off = side * (half_width + 2.2 + 44.0 * hash01(i, slot, 23) ** 1.25)
+                size = 0.85 + 1.2 * hash01(i, slot, 29)
+                variant = 0.0 if hash01(i, slot, 31) < 0.86 else 1.0
+                out.append((off, size, variant))
+        elif theme.scenery == "city":
+            for slot in range(1):
+                if hash01(i, slot, self.seed + 11) > 0.62:
+                    continue
+                side = -1.0 if hash01(i, slot, 17) < 0.5 else 1.0
+                off = side * (half_width + 7.0 + 30.0 * hash01(i, slot, 23) ** 1.4)
+                size = 0.25 + 0.85 * hash01(i, slot, 29)
+                variant = hash01(i, slot, 31)
+                out.append((off, size, variant))
+        else:  # bamboo
+            for slot in range(4):
+                if hash01(i, slot, self.seed + 11) > 0.45:
+                    continue
+                side = -1.0 if hash01(i, slot, 17) < 0.5 else 1.0
+                off = side * (half_width + 1.6 + 28.0 * hash01(i, slot, 23) ** 1.3)
+                size = 0.4 + 0.9 * hash01(i, slot, 29)
+                variant = hash01(i, slot, 31)
+                out.append((off, size, variant))
+        return tuple(out)
 
     def _fill(self, i, x, z, heading):
+        theme = themes.current
         st = Station()
         st.i = i
         st.s = (i - self.start_i) * config.STATION_STEP
@@ -85,18 +113,18 @@ class TrackStream:
 
         # Smooth drifts of shade rather than a fresh random tint every 4 m -
         # per-station jitter shimmered as the strips scrolled past.
-        tint = (vnoise(i * 0.12, self.seed + 7) * 2.0 - 1.0) * config.ICE_SPREAD
-        st.ice = (
-            int(config.ICE[0] + tint),
-            int(config.ICE[1] + tint * 0.8),
-            int(config.ICE[2] + tint * 0.6),
+        tint = (vnoise(i * 0.12, self.seed + 7) * 2.0 - 1.0) * theme.surface_spread
+        st.surface = (
+            int(theme.surface[0] + tint),
+            int(theme.surface[1] + tint * 0.8),
+            int(theme.surface[2] + tint * 0.6),
         )
         shade = 0.5 + 0.5 * vnoise(i * 0.15, self.seed + 9)
         st.bank = tuple(
-            int(config.BANK_SHADE[k] + (config.BANK[k] - config.BANK_SHADE[k]) * shade)
+            int(theme.bank_shade[k] + (theme.bank[k] - theme.bank_shade[k]) * shade)
             for k in range(3)
         )
-        st.trees = self._trees(i, st.w)
+        st.props = self._props(i, st.w)
         self.stations[i] = st
         return st
 
@@ -185,9 +213,9 @@ class TrackStream:
     def height_at(self, along):
         """Smooth surface height at a distance along the track.
 
-        The ice is drawn as straight strips between stations, so blending the
-        two ends puts the sled exactly on the surface instead of snapping it
-        up and down by up to half a station every 4 m.
+        The road is drawn as straight strips between stations, so blending the
+        two ends puts the rider exactly on the surface instead of snapping up
+        and down by up to half a station every 4 m.
         """
         fi = along / config.STATION_STEP + self.start_i
         i0 = math.floor(fi)

@@ -72,7 +72,7 @@ class Sled:
             steer
             * config.STEER_RATE
             * speed_f
-            * (1.0 - 0.45 * clamp(abs(vf) / config.MAX_SPEED, 0.0, 1.0))
+            * (1.0 - 0.40 * clamp(abs(vf) / config.MAX_SPEED, 0.0, 1.0))
         )
         if abs(vr) > 4.0:
             turn *= 1.22                  # counter-steer helps when sideways
