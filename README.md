@@ -50,9 +50,12 @@ path. Each station (a cross-section, 4 m apart) advances by a curvature and a
 height taken from two smooth value-noise fields, both keyed only on the station
 index. Nothing is stored in order to know what comes next, so the track has no
 end and no size. `TrackStream` keeps a dict of stations around the player:
-generate ahead (`GEN_AHEAD`), delete what falls behind (`prune`).
+160 of them ahead and 160 behind (`GEN_AHEAD`, `GEN_BEHIND`), with anything
+outside that window deleted (`prune`). Each station is derived from its
+neighbour, so the sweep can be built forwards or unwound backwards - which is
+why spinning round and riding back never runs off the end of the ice.
 
-**3. Memory stays flat.** The window of live stations is constant (~190 of them
+**3. Memory stays flat.** The window of live stations is constant (~320 of them
 whether you have ridden 100 m or 100 km), the spray is a preallocated 200-slot
 ring buffer, and no per-frame list is kept. Measured: **~42 MB RSS, +0.7 MB
 across 3,600 frames** of continuous riding. Geometry beyond `FOG_END` is culled
@@ -76,11 +79,11 @@ On this machine (Python 3.14, pygame-ce 2.5.6, 1280x720, headless video driver):
 
 | | |
 | --- | --- |
-| Frame cost | 0.21 ms physics + 7.4 ms draw & present |
-| Frame time | median 7.1 ms, p95 9.8 ms -> 60 fps with headroom |
-| Ceiling | ~135 fps |
-| Polygons on screen | 400 - 460 |
-| Live track stations | 187, constant |
+| Frame cost | 0.2 ms physics + 6.5 ms draw & present |
+| Frame time | median 6.6 ms, p95 9.5 ms -> 60 fps with headroom |
+| Ceiling | ~150 fps |
+| Polygons on screen | 438 - 490 |
+| Live track stations | 321, constant |
 | RSS | ~41 MB, +0.6 MB over 3,600 frames |
 | Distance in 60 s (autopilot) | ~1.86 km |
 
@@ -107,7 +110,7 @@ snowdrift/game.py       input, stepping, scene assembly, sled mesh
 Handling lives in `snowdrift/config.py`: `GRIP_BASE` and
 `GRIP_THROTTLE_LOSS` control how loose the ice feels, `STEER_RATE` how quickly
 the nose comes round, `ENGINE`/`MAX_SPEED` the pace. Track shape comes from
-`TrackStream._curvature` and `_height`; `GEN_AHEAD`, `KEEP_BEHIND` and
+`TrackStream._curvature` and `_height`; `GEN_AHEAD`/`GEN_BEHIND` and
 `RENDER_FAR` are the memory/visibility knobs.
 
 ## Screenshots

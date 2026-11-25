@@ -29,7 +29,7 @@ ROCK = (152, 173, 190)
 # --- track streaming ------------------------------------------------------
 STATION_STEP = 4.0         # metres between track samples
 GEN_AHEAD = 160            # stations generated in front of the player
-KEEP_BEHIND = 26           # stations kept behind the player, then discarded
+GEN_BEHIND = 160           # ...and behind, so turning round never shows a void
 RENDER_NEAR = 56           # stations drawn at full resolution (~224 m)
 RENDER_MID = 92            # then every second station
 RENDER_FAR = 118           # then every fourth station (~472 m)

@@ -91,6 +91,8 @@ class Game:
         self.cam_look = [self.sled.x, self.sled.y + 1.5, self.sled.z + 7.0]
         self.shake = 0.0
         self.last_bumps = 0
+        self._bump_cool = 0.0
+        self._render_dir = 1
 
     def handle_event(self, event):
         """Returns False when the window should close."""
@@ -146,12 +148,19 @@ class Game:
         sub = dt / steps
         for _ in range(steps):
             self.sled.update(sub, throttle, brake, steer, self.track)
-            self.track.ensure(self.sled.station_i + config.GEN_AHEAD)
-        self.track.prune(self.sled.station_i - config.KEEP_BEHIND)
 
+        # The road is grown both ways from the player, so spinning round and
+        # riding back never runs off the end of the generated ice.
+        cur = self.sled.station_i
+        self.track.ensure(cur - config.GEN_BEHIND, cur + config.GEN_AHEAD)
+        self.track.prune(cur - config.GEN_BEHIND, cur + config.GEN_AHEAD)
+
+        self._bump_cool = max(0.0, self._bump_cool - dt)
         if self.sled.bumps != self.last_bumps:
-            self.shake = min(1.4, self.shake + 0.55)
             self.last_bumps = self.sled.bumps
+            if self._bump_cool <= 0.0:
+                self.shake = min(0.9, self.shake + 0.32)
+                self._bump_cool = 0.16
 
     def _update_spray(self, dt, throttle):
         sled = self.sled
@@ -199,8 +208,8 @@ class Game:
             self.cam_pos[i] += (target[i] - self.cam_pos[i]) * k1
             self.cam_look[i] += (look[i] - self.cam_look[i]) * k2
 
-        self.shake = max(0.0, self.shake - dt * 2.4)
-        sh = self.shake * 0.42
+        self.shake = max(0.0, self.shake - dt * 3.2)
+        sh = self.shake * 0.30
         px = self.cam_pos[0] + random.uniform(-sh, sh)
         py = self.cam_pos[1] + random.uniform(-sh, sh)
         pz = self.cam_pos[2] + random.uniform(-sh, sh)
@@ -227,23 +236,42 @@ class Game:
         self._draw_spray(r)
         self._draw_hud()
 
+    def _view_dir(self, cur):
+        """+1 if the camera looks along increasing stations, -1 if back.
+
+        With a dead zone, so a sideways drift does not flip the whole track
+        between frames and make it pop.
+        """
+        st = self.track.get(cur)
+        if st is not None:
+            cam = self.renderer.cam
+            dot = cam.fx * st.fx + cam.fz * st.fz
+            if dot > 0.2:
+                self._render_dir = 1
+            elif dot < -0.2:
+                self._render_dir = -1
+        return self._render_dir
+
     def _station_indices(self, cur):
-        idxs = []
-        i = cur - 3
-        end_near = cur + config.RENDER_NEAR
-        while i <= end_near:
-            idxs.append(i)
-            i += 1
-        end_mid = cur + config.RENDER_MID
-        while i <= end_mid:
-            idxs.append(i)
-            i += 2
-        end_far = cur + config.RENDER_FAR
-        while i <= end_far:
-            idxs.append(i)
-            i += 4
-        idxs.append(end_far)
-        return idxs
+        """Stations to draw, walking out in whichever way the camera faces.
+
+        LOD steps get coarser with distance in that direction, so the far view
+        is as long behind the sled as it is in front of it.
+        """
+        d = self._view_dir(cur)
+        offs = []
+        off = -4
+        while off <= config.RENDER_NEAR:
+            offs.append(off)
+            off += 1
+        while off <= config.RENDER_MID:
+            offs.append(off)
+            off += 2
+        while off <= config.RENDER_FAR:
+            offs.append(off)
+            off += 4
+        offs.append(config.RENDER_FAR)
+        return [cur + d * o for o in offs]
 
     def _draw_track(self, r):
         track = self.track
@@ -319,7 +347,7 @@ class Game:
             )
 
         for st in stations:
-            if not st.trees or st.i > cur + 80:
+            if not st.trees or abs(st.i - cur) > 80:
                 continue
             for off, size, kind in st.trees:
                 self._add_tree(r, st.x + st.rx * off, st.y, st.z + st.rz * off, size, kind)

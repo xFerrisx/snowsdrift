@@ -111,7 +111,10 @@ class Sled:
             self.vz = st.fz * wf + st.rz * wr
             lateral = side * limit
 
-        self.y = st.y + 0.02
+        # Blend the two stations the sled sits between: the ice is drawn as
+        # straight strips, so this keeps the sled planted on the surface
+        # instead of popping up a step at every station boundary.
+        self.y = track.height_at(along) + 0.02
         self.speed = math.hypot(self.vx, self.vz)
         # Slip is measured between the nose and the direction of travel - the
         # angle you actually see when the sled comes sideways.
@@ -124,7 +127,7 @@ class Sled:
         # --- lean / pitch ---------------------------------------------------
         target_roll = clamp(-vf * turn * 0.011, -0.30, 0.30) - self.drift * 0.0022
         self.roll += (clamp(target_roll, -0.36, 0.36) - self.roll) * (1.0 - math.exp(-9.0 * dt))
-        slope = track.slope_at(st.i)
+        slope = track.slope_at_along(along)
         target_pitch = clamp(-math.atan(slope) * 0.9, -0.22, 0.22)
         self.pitch += (target_pitch - self.pitch) * (1.0 - math.exp(-6.0 * dt))
 
